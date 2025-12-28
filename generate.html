@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garcia's Script | Generate Key</title>
+
+<style>
+body {
+    background:#0b0b0b;
+    font-family:Arial, sans-serif;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+    margin:0;
+}
+.card {
+    width:480px;
+    max-width:90%;
+    background:#111;
+    border-radius:18px;
+    padding:35px;
+    text-align:center;
+}
+.top {
+    height:6px;
+    background:#a678ff;
+    border-radius:12px;
+    margin-bottom:20px;
+}
+.logo {
+    width:120px;
+    margin-bottom:15px;
+}
+.keybox {
+    background:#0f0f0f;
+    padding:18px;
+    border-radius:10px;
+    font-size:16px;
+    word-break:break-all;
+    user-select:all;
+    margin-bottom:15px;
+}
+button {
+    width:100%;
+    padding:16px;
+    border:none;
+    border-radius:10px;
+    font-weight:bold;
+    cursor:pointer;
+    font-size:16px;
+    margin-bottom:10px;
+}
+.copy {
+    background:#3ddfff;
+    color:black;
+    display:none;
+}
+.info {
+    font-size:14px;
+    color:#aaa;
+    margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+<div class="card">
+    <div class="top"></div>
+    <img class="logo" src="https://raw.githubusercontent.com/kielsvu/Utility/Lua/Utility/Icons/1763776738233.jpg">
+    <h2>Garcia's Script</h2>
+    <div class="info">Key valid for 12 hours</div>
+
+    <div class="keybox" id="keyBox"></div>
+    <button class="copy" onclick="copyKey()" id="copyBtn">COPY KEY</button>
+</div>
+
+<script>
+const EXPIRY_TIME = 12 * 60 * 60 * 1000; // 12 hours
+const keysUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/keys.json";
+
+// Copy key
+function copyKey(){
+    const key = document.getElementById("keyBox").innerText;
+    navigator.clipboard.writeText(key);
+    alert("Key copied to clipboard!");
+}
+
+// Pick a random available key
+async function pickRandomKey(){
+    const response = await fetch(keysUrl);
+    const allKeys = await response.json(); // JSON format: { "KEY-AAAA-BBBB-CCCC": timestamp, ... }
+
+    const now = Date.now();
+
+    // Filter available keys (expired or never picked)
+    const availableKeys = Object.entries(allKeys)
+        .filter(([key, expiry]) => !expiry || now >= expiry);
+
+    if(availableKeys.length === 0){
+        document.getElementById("keyBox").innerText = "No keys available. Try again later.";
+        return;
+    }
+
+    // Pick random key
+    const randomIndex = Math.floor(Math.random() * availableKeys.length);
+    const [pickedKey] = availableKeys[randomIndex];
+
+    // Update local storage to mark expiration
+    let userKeys = JSON.parse(localStorage.getItem("GS_KEYS") || "{}");
+    userKeys[pickedKey] = now + EXPIRY_TIME;
+    localStorage.setItem("GS_KEYS", JSON.stringify(userKeys));
+
+    document.getElementById("keyBox").innerText = pickedKey;
+    document.getElementById("copyBtn").style.display = "block";
+
+    // Note: GitHub JSON cannot be updated directly from browser
+    // For full server-side marking, you need a server API
+}
+
+// Display previously picked key if still valid
+const savedKeys = JSON.parse(localStorage.getItem("GS_KEYS") || "{}");
+const now = Date.now();
+const validKeys = Object.entries(savedKeys).filter(([k, exp]) => now < exp);
+
+if(validKeys.length > 0){
+    document.getElementById("keyBox").innerText = validKeys[0][0];
+    document.getElementById("copyBtn").style.display = "block";
+} else {
+    pickRandomKey();
+}
+</script>
+</body>
+</html>
