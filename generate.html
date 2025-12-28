@@ -69,66 +69,85 @@ button {
 <body>
 <div class="card">
     <div class="top"></div>
+
     <img class="logo" src="https://raw.githubusercontent.com/kielsvu/Utility/Lua/Utility/Icons/1763776738233.jpg">
     <h2>Garcia's Script</h2>
     <div class="info">Key valid for 12 hours</div>
 
-    <div class="keybox" id="keyBox"></div>
+    <div class="keybox" id="keyBox">Loading key…</div>
     <button class="copy" onclick="copyKey()" id="copyBtn">COPY KEY</button>
 </div>
 
 <script>
 const EXPIRY_TIME = 12 * 60 * 60 * 1000; // 12 hours
-const keysUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/keys.json";
+const keysUrl = "https://raw.githubusercontent.com/kielsvu/Utility/refs/heads/Lua/Utility/Major/Main.txt";
 
-// Copy key
+// Copy key to clipboard
 function copyKey(){
     const key = document.getElementById("keyBox").innerText;
     navigator.clipboard.writeText(key);
     alert("Key copied to clipboard!");
 }
 
-// Pick a random available key
-async function pickRandomKey(){
-    const response = await fetch(keysUrl);
-    const allKeys = await response.json(); // JSON format: { "KEY-AAAA-BBBB-CCCC": timestamp, ... }
+// Save key with expiration in localStorage
+function saveUsedKey(key){
+    let usedKeys = JSON.parse(localStorage.getItem("GS_USED") || "{}");
+    usedKeys[key] = Date.now() + EXPIRY_TIME;
+    localStorage.setItem("GS_USED", JSON.stringify(usedKeys));
+}
 
+// Clean expired keys
+function cleanExpiredKeys(){
+    let usedKeys = JSON.parse(localStorage.getItem("GS_USED") || "{}");
     const now = Date.now();
+    for(const k in usedKeys){
+        if(usedKeys[k] <= now){
+            delete usedKeys[k];
+        }
+    }
+    localStorage.setItem("GS_USED", JSON.stringify(usedKeys));
+    return usedKeys;
+}
 
-    // Filter available keys (expired or never picked)
-    const availableKeys = Object.entries(allKeys)
-        .filter(([key, expiry]) => !expiry || now >= expiry);
+// Fetch keys from GitHub and pick a random available key
+async function pickRandomKey(){
+    cleanExpiredKeys();
+    const res = await fetch(keysUrl + "?cache_bust=" + Date.now());
+    const text = await res.text();
+    const allKeys = text.split(/\s+/).filter(k => k.trim().length > 0);
+
+    const usedKeys = JSON.parse(localStorage.getItem("GS_USED") || "{}");
+    const availableKeys = allKeys.filter(k => !usedKeys[k]);
 
     if(availableKeys.length === 0){
         document.getElementById("keyBox").innerText = "No keys available. Try again later.";
         return;
     }
 
-    // Pick random key
-    const randomIndex = Math.floor(Math.random() * availableKeys.length);
-    const [pickedKey] = availableKeys[randomIndex];
-
-    // Update local storage to mark expiration
-    let userKeys = JSON.parse(localStorage.getItem("GS_KEYS") || "{}");
-    userKeys[pickedKey] = now + EXPIRY_TIME;
-    localStorage.setItem("GS_KEYS", JSON.stringify(userKeys));
-
-    document.getElementById("keyBox").innerText = pickedKey;
+    const choice = availableKeys[Math.floor(Math.random() * availableKeys.length)];
+    document.getElementById("keyBox").innerText = choice;
     document.getElementById("copyBtn").style.display = "block";
 
-    // Note: GitHub JSON cannot be updated directly from browser
-    // For full server-side marking, you need a server API
+    saveUsedKey(choice);
 }
 
-// Display previously picked key if still valid
-const savedKeys = JSON.parse(localStorage.getItem("GS_KEYS") || "{}");
-const now = Date.now();
-const validKeys = Object.entries(savedKeys).filter(([k, exp]) => now < exp);
+// Check if there is a currently valid key in localStorage
+function displaySavedKey(){
+    cleanExpiredKeys();
+    const usedKeys = JSON.parse(localStorage.getItem("GS_USED") || "{}");
+    const now = Date.now();
+    for(const k in usedKeys){
+        if(usedKeys[k] > now){
+            document.getElementById("keyBox").innerText = k;
+            document.getElementById("copyBtn").style.display = "block";
+            return true;
+        }
+    }
+    return false;
+}
 
-if(validKeys.length > 0){
-    document.getElementById("keyBox").innerText = validKeys[0][0];
-    document.getElementById("copyBtn").style.display = "block";
-} else {
+// On page load
+if(!displaySavedKey()){
     pickRandomKey();
 }
 </script>
